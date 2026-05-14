@@ -159,130 +159,29 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
         col=1,
     )
 
-    # Apply Gaussian smoothing to the close price
-    df["Smoothed_Close"] = gaussian_filter1d(df["Close"], sigma=2)
+    # Plot EMAs
+    ema_colors = {
+        9: "rgba(255, 0, 255, 0.7)",  # Magenta
+        20: "rgba(0, 255, 255, 0.7)",  # Cyan
+        50: "rgba(255, 165, 0, 0.7)",  # Orange
+        200: "rgba(255, 192, 203, 0.7)",  # Pink
+        500: "rgba(128, 0, 128, 0.7)",  # Purple
+    }
 
-    # Plot Gaussian smoothed line
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=df["Smoothed_Close"],
-            name="Smoothed Close",
-            line=dict(color="blue", width=2, dash="dot"),
-            mode="lines",
-        ),
-        row=main_row,
-        col=1,
-    )
-
-    # Apply coarse Gaussian smoothing to the close price
-    df["Coarse_Smoothed_Close"] = gaussian_filter1d(df["Close"], sigma=10)
-
-    # Plot coarse Gaussian smoothed line
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=df["Coarse_Smoothed_Close"],
-            name="Coarse Smoothed Close",
-            line=dict(color="orange", width=2, dash="dash"),
-            mode="lines",
-        ),
-        row=main_row,
-        col=1,
-    )
-
-    # Find local extrema for the fine smoothed line
-    smoothed = df["Smoothed_Close"].values
-    peaks_smoothed, _ = find_peaks(smoothed)
-    troughs_smoothed, _ = find_peaks(-smoothed)
-
-    # Plot local extrema for fine smoothed line
-    fig.add_trace(
-        go.Scatter(
-            x=x[peaks_smoothed],
-            y=df["Smoothed_Close"].iloc[peaks_smoothed],
-            name="Smoothed Peaks",
-            mode="markers",
-            marker=dict(
-                symbol="circle",
-                size=8,
-                color="blue",
-                line=dict(width=1, color="darkblue"),
-            ),
-        ),
-        row=main_row,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=x[troughs_smoothed],
-            y=df["Smoothed_Close"].iloc[troughs_smoothed],
-            name="Smoothed Troughs",
-            mode="markers",
-            marker=dict(
-                symbol="circle",
-                size=8,
-                color="lightblue",
-                line=dict(width=1, color="darkblue"),
-            ),
-        ),
-        row=main_row,
-        col=1,
-    )
-
-    # Find local extrema for the coarse smoothed line
-    coarse_smoothed = df["Coarse_Smoothed_Close"].values
-    peaks_coarse, _ = find_peaks(coarse_smoothed)
-    troughs_coarse, _ = find_peaks(-coarse_smoothed)
-
-    # Plot local extrema for coarse smoothed line
-    fig.add_trace(
-        go.Scatter(
-            x=x[peaks_coarse],
-            y=df["Coarse_Smoothed_Close"].iloc[peaks_coarse],
-            name="Coarse Peaks",
-            mode="markers",
-            marker=dict(
-                symbol="diamond",
-                size=10,
-                color="orange",
-                line=dict(width=1, color="darkorange"),
-            ),
-        ),
-        row=main_row,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=x[troughs_coarse],
-            y=df["Coarse_Smoothed_Close"].iloc[troughs_coarse],
-            name="Coarse Troughs",
-            mode="markers",
-            marker=dict(
-                symbol="diamond",
-                size=10,
-                color="gold",
-                line=dict(width=1, color="darkorange"),
-            ),
-        ),
-        row=main_row,
-        col=1,
-    )
-
-    # Plot trendline
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=df["trendline_value"],
-            name="Trendline",
-            line=dict(color="red", width=2, dash="dash"),
-            mode="lines",
-        ),
-        row=main_row,
-        col=1,
-    )
+    for period in [9, 20, 50, 200, 500]:
+        if f"ema_{period}" in df.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=df[f"ema_{period}"],
+                    name=f"EMA {period}",
+                    line=dict(color=ema_colors[period], width=1),
+                    mode="lines",
+                    opacity=0.8,
+                ),
+                row=main_row,
+                col=1,
+            )
 
     # Plot Ichimoku clouds
     fig.add_trace(
@@ -381,14 +280,24 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
 
     # Update layout for interactivity
     fig.update_layout(
-        title="BTC-USD 15m Backtest: Price, Trendline, Ichimoku Cloud, and Signal Debugger",
+        title="BTC-USD 15m Backtest: Price, Ichimoku Cloud, and Signal Debugger",
         xaxis_title="Time",
         yaxis_title="Price (USD)",
         hovermode="x unified",
         template="plotly_white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.02,
+            bordercolor="rgba(0,0,0,0.1)",
+            borderwidth=1,
+            bgcolor="rgba(255,255,255,0.9)",
+        ),
         autosize=True,
         height=900 if show_signal_grid else 600,
+        margin=dict(r=200 if show_signal_grid else 160),
     )
 
     # Configure main chart x-axis

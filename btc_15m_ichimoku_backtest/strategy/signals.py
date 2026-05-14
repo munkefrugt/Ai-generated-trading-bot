@@ -43,17 +43,17 @@ def is_ichimoku_bullish(df, i):
 
 def generate_signals(df):
     """
-    Generate trading signals based on trendline breakout and Ichimoku.
+    Generate trading signals based on Ichimoku.
 
     Adds columns:
-    - breakout_signal: 1 on entry (trendline breakout + ichimoku bullish)
-    - exit_signal: 1 on exit (close below kijun or trendline)
+    - breakout_signal: 1 on entry (Ichimoku bullish)
+    - exit_signal: 1 on exit (close below kijun)
     - position_signal: 1 on entry, 0 on exit
 
     Parameters:
     -----------
     df : pandas.DataFrame
-        DataFrame with trendline and Ichimoku columns
+        DataFrame with Ichimoku columns
 
     Returns:
     --------
@@ -69,26 +69,18 @@ def generate_signals(df):
 
     # Iterate through bars starting from bar 1 (need previous bar)
     for i in range(1, len(df)):
-        prev_close = df["Close"].iloc[i - 1]
         curr_close = df["Close"].iloc[i]
-        prev_trendline = df["trendline_value"].iloc[i - 1]
-        curr_trendline = df["trendline_value"].iloc[i]
         curr_kijun = df["kijun_sen"].iloc[i]
 
-        # Entry signal: trendline breakout + ichimoku bullish
-        if not pd.isna(prev_trendline) and not pd.isna(curr_trendline):
-            # Previous close at or below trendline AND current close above trendline
-            if prev_close <= prev_trendline and curr_close > curr_trendline:
-                # Check ichimoku condition
-                if is_ichimoku_bullish(df, i):
-                    df.loc[df.index[i], "breakout_signal"] = 1
-                    df.loc[df.index[i], "position_signal"] = 1
+        # Entry signal: Ichimoku bullish condition
+        if is_ichimoku_bullish(df, i):
+            df.loc[df.index[i], "breakout_signal"] = 1
+            df.loc[df.index[i], "position_signal"] = 1
 
-        # Exit signal: close below kijun OR close below trendline
-        if not pd.isna(curr_kijun) and not pd.isna(curr_trendline):
-            if curr_close < curr_kijun or curr_close < curr_trendline:
-                df.loc[df.index[i], "exit_signal"] = 1
-                df.loc[df.index[i], "position_signal"] = 0
+        # Exit signal: close below kijun
+        if not pd.isna(curr_kijun) and curr_close < curr_kijun:
+            df.loc[df.index[i], "exit_signal"] = 1
+            df.loc[df.index[i], "position_signal"] = 0
 
     return df
 
