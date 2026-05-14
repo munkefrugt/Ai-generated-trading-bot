@@ -1,0 +1,5 @@
+venv/
+*.png
+*.html
+__pycache__/
+*.pyc
