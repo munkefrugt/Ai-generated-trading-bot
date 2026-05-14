@@ -1,6 +1,45 @@
 import pandas as pd
 
 
+def all_emas_bullish(df, i, periods=[9, 20, 50, 200, 500]):
+    """
+    Check if all EMAs have a positive slope (current > previous) at bar i.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame with EMA columns
+    i : int
+        Positional index
+    periods : list
+        List of EMA periods to check
+
+    Returns:
+    --------
+    bool
+        True if all EMAs have positive slope, False otherwise
+    """
+    if i < 1:  # Need previous bar
+        return False
+
+    for period in periods:
+        col_name = f"ema_{period}"
+        if col_name not in df.columns:
+            return False
+
+        curr_val = df[col_name].iloc[i]
+        prev_val = df[col_name].iloc[i - 1]
+
+        if pd.isna(curr_val) or pd.isna(prev_val):
+            return False
+
+        # If any EMA doesn't have positive slope, return False
+        if curr_val <= prev_val:
+            return False
+
+    return True
+
+
 def is_ichimoku_bullish(df, i):
     """
     Check if Ichimoku conditions are bullish at bar i.
@@ -151,5 +190,35 @@ def generate_cloud_signals(df):
         # Sell signal: price dips into cloud (was above, now in or below)
         if prev_close > cloud_top_prev and curr_close <= cloud_bottom_curr:
             df.loc[df.index[i], "sell_signal"] = 1
+
+    return df
+
+
+def add_ema_conditions(df, periods=[9, 20, 50, 200, 500]):
+    """
+    Add EMA slope condition columns to DataFrame.
+
+    Adds columns:
+    - all_emas_bullish: 1 when all EMAs have positive slope, 0 otherwise
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame with EMA columns
+
+    Returns:
+    --------
+    pandas.DataFrame
+        Updated DataFrame with EMA condition columns
+    """
+    df = df.copy()
+
+    # Initialize condition column
+    df["all_emas_bullish"] = 0
+
+    # Iterate through bars starting from bar 1
+    for i in range(1, len(df)):
+        if all_emas_bullish(df, i, periods=periods):
+            df.loc[df.index[i], "all_emas_bullish"] = 1
 
     return df

@@ -1,7 +1,11 @@
 from data.fetch import get_btc_data
 from indicators.ichimoku import add_ichimoku
 from indicators.ema import add_ema
-from strategy.signals import generate_signals, generate_cloud_signals
+from strategy.signals import (
+    generate_signals,
+    generate_cloud_signals,
+    add_ema_conditions,
+)
 from backtest.engine import run_backtest
 from plotting.chart import plot_results
 
@@ -9,6 +13,7 @@ if __name__ == "__main__":
     df = get_btc_data()
     df = add_ichimoku(df)
     df = add_ema(df, periods=[9, 20, 50, 200, 500])
+    df = add_ema_conditions(df, periods=[9, 20, 50, 200, 500])
 
     df = generate_cloud_signals(df)
     df, trades, stats = run_backtest(df)
@@ -27,4 +32,4 @@ if __name__ == "__main__":
             f"({trade['return_pct']:+.2f}%)"
         )
 
-    plot_results(df, trades)
+    plot_results(df, trades, signal_columns=["price_above_cloud", "all_emas_bullish"])
