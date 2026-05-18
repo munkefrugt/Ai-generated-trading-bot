@@ -126,9 +126,9 @@ def generate_signals(df):
 
 def generate_cloud_signals(df):
     """
-    Generate simple buy/sell signals based on price and Ichimoku cloud.
+    Generate simple buy/sell signals based on price and Ichimoku cloud and EMA conditions.
 
-    Buy signal: Price crosses above cloud (above both senkou_span_a and senkou_span_b)
+    Buy signal: Price crosses above cloud AND all EMAs are bullish
     Sell signal: Price dips into cloud (below the cloud)
 
     Adds columns:
@@ -139,7 +139,7 @@ def generate_cloud_signals(df):
     Parameters:
     -----------
     df : pandas.DataFrame
-        DataFrame with Close, senkou_span_a, and senkou_span_b columns
+        DataFrame with Close, senkou_span_a, senkou_span_b, and all_emas_bullish columns
 
     Returns:
     --------
@@ -161,6 +161,7 @@ def generate_cloud_signals(df):
         curr_span_b = df["senkou_span_b"].iloc[i]
         prev_span_a = df["senkou_span_a"].iloc[i - 1]
         prev_span_b = df["senkou_span_b"].iloc[i - 1]
+        all_emas_bullish = df["all_emas_bullish"].iloc[i]
 
         # Skip if any value is NaN
         if (
@@ -183,8 +184,12 @@ def generate_cloud_signals(df):
         if curr_close > cloud_top_curr:
             df.loc[df.index[i], "price_above_cloud"] = 1
 
-        # Buy signal: price crosses above cloud (was at or below, now above)
-        if prev_close <= cloud_top_prev and curr_close > cloud_top_curr:
+        # Buy signal: price crosses above cloud AND all EMAs are bullish
+        if (
+            prev_close <= cloud_top_prev
+            and curr_close > cloud_top_curr
+            and all_emas_bullish == 1
+        ):
             df.loc[df.index[i], "buy_signal"] = 1
 
         # Sell signal: price dips into cloud (was above, now in or below)
