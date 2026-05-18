@@ -106,15 +106,15 @@ def plot_signal_debug_grid(fig, df, condition_columns, row_offset=2, colors_map=
 
 def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
     """
-    Plot backtest results with price, trendline, cloud, trades, and signal debugger.
+    Plot backtest results with price, cloud, trades, equity curve, and cash.
     Uses Plotly for interactive plotting with subplots.
 
     Parameters:
     -----------
     df : pandas.DataFrame
-        DataFrame with OHLC, trendline, and Ichimoku columns
+        DataFrame with OHLC, indicator, and equity/cash columns
     trades : list
-        List of trade dicts with entry_time, entry_price, exit_time, exit_price
+        List of Trade objects with entry/exit times and prices
     show_signal_grid : bool
         Whether to show the signal debugger grid (default True)
     signal_columns : list of str, optional
@@ -125,26 +125,47 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
     if signal_columns is None:
         signal_columns = ["price_above_cloud"]
 
-    # Create figure with 2 rows if showing signal grid, else 1 row
+    # Create figure with appropriate number of rows
+    # Row 1: main chart (height ratio 2.5)
+    # Row 2: debugger grid (height ratio 0.8) - optional
+    # Row 3: equity (height ratio 1)
+    # Row 4: cash (height ratio 1)
+    num_rows = 4 if show_signal_grid else 3
+
     if show_signal_grid:
-        # Row 1: main chart (height ratio 3)
-        # Row 2: debugger grid (height ratio 1)
         fig = make_subplots(
-            rows=2,
+            rows=num_rows,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.06,
+            row_heights=[0.50, 0.20, 0.15, 0.15],
+            specs=[
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+            ],
+        )
+    else:
+        fig = make_subplots(
+            rows=num_rows,
             cols=1,
             shared_xaxes=True,
             vertical_spacing=0.08,
-            row_heights=[0.75, 0.25],
-            specs=[[{"secondary_y": False}], [{"secondary_y": False}]],
+            row_heights=[0.60, 0.20, 0.20],
+            specs=[
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+            ],
         )
-    else:
-        fig = make_subplots(specs=[[{"secondary_y": False}]])
 
     # Use datetime index for x-axis
     x = df.index
-
-    # Determine which row to plot main chart on
     main_row = 1
+    grid_row = 2 if show_signal_grid else None
+    equity_row = 3 if show_signal_grid else 2
+    cash_row = 4 if show_signal_grid else 3
 
     # Plot close price
     fig.add_trace(
@@ -164,11 +185,14 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
         9: "rgba(255, 0, 255, 0.7)",  # Magenta
         20: "rgba(0, 255, 255, 0.7)",  # Cyan
         50: "rgba(255, 165, 0, 0.7)",  # Orange
-        200: "rgba(255, 192, 203, 0.7)",  # Pink
+        200: "rgba(0, 0, 255, 0.7)",  # Blue
         500: "rgba(128, 0, 128, 0.7)",  # Purple
+        1000: "rgba(128, 0, 0, 0.7)",  # Red
+        1500: "rgba(0, 128, 0, 0.7)",  # Dark green
+        2000: "rgba(128, 128, 0, 0.7)",  # Olive
     }
 
-    for period in [9, 20, 50, 200, 500]:
+    for period in [9, 20, 50, 200, 500, 1000, 1500, 2000]:
         if f"ema_{period}" in df.columns:
             fig.add_trace(
                 go.Scatter(
@@ -210,6 +234,65 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
         col=1,
     )
 
+    if "tenkan_sen" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=df["tenkan_sen"],
+                name="Tenkan Sen",
+                line=dict(color="orange", width=1.5, dash="dash"),
+                mode="lines",
+                opacity=0.8,
+            ),
+            row=main_row,
+            col=1,
+        )
+
+    if "kijun_sen" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=df["kijun_sen"],
+                name="Kijun Sen",
+                line=dict(color="blue", width=1.5, dash="dash"),
+                mode="lines",
+                opacity=0.8,
+            ),
+            row=main_row,
+            col=1,
+        )
+
+    # Plot SuperTrend if available
+    if "supertrend" in df.columns:
+        bullish_supertrend = df["supertrend"].where(df["supertrend_dir"] == 1)
+        bearish_supertrend = df["supertrend"].where(df["supertrend_dir"] == -1)
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=bullish_supertrend,
+                name="SuperTrend Bullish",
+                line=dict(color="green", width=2),
+                mode="lines",
+                opacity=0.85,
+            ),
+            row=main_row,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=bearish_supertrend,
+                name="SuperTrend Bearish",
+                line=dict(color="red", width=2),
+                mode="lines",
+                opacity=0.85,
+            ),
+            row=main_row,
+            col=1,
+        )
+
     # Fill between senkou spans for cloud
     cloud_x = list(x) + list(x)[::-1]
     fig.add_trace(
@@ -242,47 +325,81 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
         col=1,
     )
 
-    # Mark buy and sell signals from dataframe
-    buy_signals = df[df["buy_signal"] == 1]
-    sell_signals = df[df["sell_signal"] == 1]
+    # Mark trades from trades list
+    # Plot buy markers at entry points
+    if trades:
+        buy_times = [trade.entry_time for trade in trades]
+        buy_prices = [trade.entry_price for trade in trades]
 
-    # Plot buy signals
-    if len(buy_signals) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=buy_signals.index,
-                y=buy_signals["Close"].values,
-                name="Buy",
-                mode="markers",
-                marker=dict(symbol="triangle-up", size=10, color="green"),
-            ),
-            row=main_row,
-            col=1,
-        )
+        if buy_times:
+            fig.add_trace(
+                go.Scatter(
+                    x=buy_times,
+                    y=buy_prices,
+                    name="Buy",
+                    mode="markers",
+                    marker=dict(symbol="triangle-up", size=10, color="green"),
+                ),
+                row=main_row,
+                col=1,
+            )
 
-    # Plot sell signals
-    if len(sell_signals) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=sell_signals.index,
-                y=sell_signals["Close"].values,
-                name="Sell",
-                mode="markers",
-                marker=dict(symbol="triangle-down", size=10, color="red"),
-            ),
-            row=main_row,
-            col=1,
-        )
+    # Plot sell markers at exit points
+    if trades:
+        sell_times = [trade.exit_time for trade in trades]
+        sell_prices = [trade.exit_price for trade in trades]
+
+        if sell_times:
+            fig.add_trace(
+                go.Scatter(
+                    x=sell_times,
+                    y=sell_prices,
+                    name="Sell",
+                    mode="markers",
+                    marker=dict(symbol="triangle-down", size=10, color="red"),
+                ),
+                row=main_row,
+                col=1,
+            )
 
     # Add signal debugger grid if requested
     if show_signal_grid:
-        plot_signal_debug_grid(fig, df, signal_columns, row_offset=2)
+        plot_signal_debug_grid(fig, df, signal_columns, row_offset=grid_row)
+
+    # Plot Equity
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=df["equity"],
+            name="Equity",
+            line=dict(color="blue", width=2),
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(0, 0, 255, 0.1)",
+        ),
+        row=equity_row,
+        col=1,
+    )
+
+    # Plot Cash
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=df["cash"],
+            name="Cash",
+            line=dict(color="green", width=2),
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(0, 255, 0, 0.1)",
+        ),
+        row=cash_row,
+        col=1,
+    )
 
     # Update layout for interactivity
     fig.update_layout(
-        title="BTC-USD 15m Backtest: Price, Ichimoku Cloud, and Signal Debugger",
+        title="BTC-USD 15m Backtest: Price, Ichimoku, Equity & Cash",
         xaxis_title="Time",
-        yaxis_title="Price (USD)",
         hovermode="x unified",
         template="plotly_white",
         legend=dict(
@@ -296,19 +413,24 @@ def plot_results(df, trades, show_signal_grid=True, signal_columns=None):
             bgcolor="rgba(255,255,255,0.9)",
         ),
         autosize=True,
-        height=900 if show_signal_grid else 600,
+        height=1100 if show_signal_grid else 900,
         margin=dict(r=200 if show_signal_grid else 160),
     )
+
+    # Configure y-axes titles
+    fig.update_yaxes(title_text="Price (USD)", row=main_row, col=1)
+    fig.update_yaxes(title_text="Equity ($)", row=equity_row, col=1)
+    fig.update_yaxes(title_text="Cash ($)", row=cash_row, col=1)
 
     # Configure main chart x-axis
     fig.update_xaxes(rangeslider=dict(visible=False), type="date", row=main_row, col=1)
 
-    # Configure main chart y-axis
-    fig.update_yaxes(fixedrange=False, row=main_row, col=1)
+    # Configure other x-axes
+    fig.update_xaxes(type="date", row=equity_row, col=1)
+    fig.update_xaxes(type="date", row=cash_row, col=1)
 
-    # Configure debug grid x-axis (if present)
     if show_signal_grid:
-        fig.update_xaxes(type="date", row=2, col=1)
+        fig.update_xaxes(type="date", row=grid_row, col=1)
 
     # Show the interactive plot
     fig.show()

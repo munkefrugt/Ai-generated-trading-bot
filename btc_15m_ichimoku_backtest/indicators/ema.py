@@ -1,4 +1,4 @@
-def add_ema(df, periods=[9, 20, 50, 200, 500]):
+def add_ema(df, periods=[9, 20, 50, 200, 500, 1000, 1500, 2000]):
     """
     Add Exponential Moving Average (EMA) columns to DataFrame.
 
@@ -7,7 +7,7 @@ def add_ema(df, periods=[9, 20, 50, 200, 500]):
     df : pandas.DataFrame
         DataFrame with OHLC data (requires 'Close' column)
     periods : list
-        List of EMA periods to calculate (default: [9, 20, 50, 200, 500])
+        List of EMA periods to calculate (default: [9, 20, 50, 200, 500, 1000, 1500, 2000])
 
     Returns:
     --------
